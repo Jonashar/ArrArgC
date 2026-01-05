@@ -7,7 +7,6 @@ This header-only library is intended mostly for parsing arrays of arguments.
 ## Implicit Behavior and Assumptions
 - Given argument array needs to be NULL terminated
 - All registered variable pointers are initialized with zero, if not overwritten by an argument
-- Some structures that are added with this header are
 - All array elements need to be comma-seperated
 
 > [!WARNING]
