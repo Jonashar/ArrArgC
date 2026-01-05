@@ -1,5 +1,5 @@
-#ifndef ARGUMENT_H
-#define ARGUMENT_H
+#ifndef ARRARGC_H
+#define ARRARGC_H
 
 #ifdef __cplusplus
 extern "C" {
