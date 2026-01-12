@@ -12,6 +12,16 @@ extern "C" {
 #include <string.h>
 #include <errno.h>
 
+// for timespec support
+#include <stdint.h>
+#include <time.h>
+
+#define NSEC_PER_SEC ((int64_t)1e9)
+static inline void convertNsToTimespec(int64_t* t, struct timespec* out) {
+  out->tv_sec = (*t) / NSEC_PER_SEC;
+  out->tv_nsec = (*t) % NSEC_PER_SEC;
+}
+
 #define ARRAYDELIMITER ","
 
 #define SimpleArray(giventype, givenname) \
@@ -47,10 +57,11 @@ typedef enum argumenttype_s {
   PARAM_FLOAT,
   PARAM_FLOAT_ARRAY,
   PARAM_DOUBLE,
-  PARAM_DOUBLE_ARRAY
+  PARAM_DOUBLE_ARRAY,
+  PARAM_TIMESPEC
 } ArgumentType;
 
-static int pcinternal_getStringArrayLength(char* stringifiedarray) {
+static inline int pcinternal_getStringArrayLength(char* stringifiedarray) {
   int length = strlen(stringifiedarray)+1;
   if (length > PATH_MAX) {
     fprintf(stderr, "array \"%s\" is too long\n", stringifiedarray);
@@ -67,7 +78,7 @@ static int pcinternal_getStringArrayLength(char* stringifiedarray) {
   return arraylength;
 }
 
-static size_t pcinternal_getSizeOf(int type) {
+static inline size_t pcinternal_getSizeOf(int type) {
   switch (type) {
   case PARAM_BOOL:
     return sizeof(bool);
@@ -85,14 +96,14 @@ static size_t pcinternal_getSizeOf(int type) {
   case PARAM_DOUBLE_ARRAY:
   case PARAM_STRING_ARRAY:
   case PARAM_STRING:
-    return sizeof(void*);
+    return sizeof(DummyArray);
   default:
     printf("using unsupported type %d\n", type);
     exit(EINVAL);
   }
 }
 
-static void pcinternal_getNextArgumentIndex(int argc, char* argv[], int* i) {
+static inline void pcinternal_getNextArgumentIndex(int argc, char* argv[], int* i) {
   (*i)++;
   if (((*i) >= argc) || (argv[*i][0] == '-')) {
     printf("missing parameter for argument %s\n", argv[(*i) - 1]);
@@ -100,7 +111,8 @@ static void pcinternal_getNextArgumentIndex(int argc, char* argv[], int* i) {
   }
 }
 
-static void printArgumentHelp(Argument* arguments) {
+// unused attribute to avoid warning
+static __attribute__((unused)) void printArgumentHelp(Argument* arguments) {
   printf("Available Options:\n");
   Argument *argument = arguments;
   int maxlength = 0;
@@ -124,7 +136,7 @@ static void printArgumentHelp(Argument* arguments) {
   printf(format, "");
 }
 
-static void processArguments(Argument *arguments, int argc, char *argv[]) {
+static inline void processArguments(Argument *arguments, int argc, char *argv[]) {
   bool showhelp = false;
   Argument *argument = arguments;
   while (argument->longname != NULL) {
@@ -249,6 +261,15 @@ static void processArguments(Argument *arguments, int argc, char *argv[]) {
           free(strcopy);
           break;
         }
+        case PARAM_TIMESPEC:
+        {
+          pcinternal_getNextArgumentIndex(argc, argv, &i);
+          long val = atol(argv[i]); // parse long int and convert to timespec
+          if (val > 0) {
+            convertNsToTimespec(&val, ((struct timespec*)argument->parameter));
+          }
+          break;
+        }
         default:
           printArgumentHelp(arguments);
           printf("using unsupported type for argument %s\n", argument->longname);
@@ -272,7 +293,7 @@ static void processArguments(Argument *arguments, int argc, char *argv[]) {
   }
 }
 
-static void freeArguments(Argument *arguments) {
+static inline void freeArguments(Argument *arguments) {
   Argument *argument = arguments;
   while (argument->longname != NULL) {
     if (argument->parameter != NULL) {
@@ -281,10 +302,12 @@ static void freeArguments(Argument *arguments) {
       case PARAM_STRING_ARRAY:
       {
         StringArray *strings = (StringArray *)argument->parameter;
-        for (int i = 0; i < strings->size; i++) {
-          free(strings->elements[i]);
+        if (strings != NULL) {
+          for (int i = 0; i < strings->size; i++) {
+            free(strings->elements[i]);
+          }
+          free(strings->elements);
         }
-        free(strings->elements);
         break;
       }
       case PARAM_INT_ARRAY:
@@ -292,7 +315,9 @@ static void freeArguments(Argument *arguments) {
       case PARAM_FLOAT_ARRAY:
       case PARAM_DOUBLE_ARRAY:
         array = (DummyArray*)argument->parameter;
-        free(array->elements);
+        if (array != NULL) {
+          free(array->elements);
+        }
       }
     }
     argument++;
