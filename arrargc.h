@@ -245,7 +245,7 @@ static inline void processArguments(Argument *arguments, int argc, char *argv[])
           break;
         }
         case PARAM_STRING:
-          *((char**)argument->parameter) = argv[i];
+          *((char**)argument->parameter) = argv[i] + argoffset;
           break;
         case PARAM_STRING_ARRAY:
         {
@@ -264,7 +264,7 @@ static inline void processArguments(Argument *arguments, int argc, char *argv[])
         case PARAM_TIMESPEC:
         {
           pcinternal_getNextArgumentIndex(argc, argv, &i);
-          long val = atol(argv[i]); // parse long int and convert to timespec
+          long val = atol(argv[i] + argoffset); // parse long int and convert to timespec
           if (val > 0) {
             convertNsToTimespec(&val, ((struct timespec*)argument->parameter));
           }
