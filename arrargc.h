@@ -1,6 +1,8 @@
 #ifndef ARRARGC_H
 #define ARRARGC_H
 
+// TODO allow defaults
+
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -16,10 +18,18 @@ extern "C" {
 #include <stdint.h>
 #include <time.h>
 
+#define ARRARG_SUCESS           0
+#define ARRARG_HELP_PRINT       1
+#define ARRARG_INVALID_ARGUMENT 2
+#define ARRARG_MISSING_ARGUMENT 3
+
 #define NSEC_PER_SEC ((int64_t)1e9)
-static inline void convertNsToTimespec(int64_t* t, struct timespec* out) {
-  out->tv_sec = (*t) / NSEC_PER_SEC;
-  out->tv_nsec = (*t) % NSEC_PER_SEC;
+static inline int64_t convertTimespecToNs(struct timespec* ts) {
+  return ts->tv_sec * 1e9 + ts->tv_nsec;
+}
+static inline void convertNsToTimespec(int64_t t, struct timespec* out) {
+  out->tv_sec = (t) / NSEC_PER_SEC;
+  out->tv_nsec = (t) % NSEC_PER_SEC;
 }
 
 #define ARRAYDELIMITER ","
@@ -266,7 +276,7 @@ static inline void processArguments(Argument *arguments, int argc, char *argv[])
           pcinternal_getNextArgumentIndex(argc, argv, &i);
           long val = atol(argv[i] + argoffset); // parse long int and convert to timespec
           if (val > 0) {
-            convertNsToTimespec(&val, ((struct timespec*)argument->parameter));
+            convertNsToTimespec(val, ((struct timespec*)argument->parameter));
           }
           break;
         }
@@ -293,6 +303,50 @@ static inline void processArguments(Argument *arguments, int argc, char *argv[])
   }
 }
 
+static inline void printArguments(Argument *arguments) {
+  printf("Argument values:\n");
+  Argument *argument = &arguments[0];
+  while(argument->longname != NULL) {
+    switch (argument->type) {
+    case PARAM_BOOL:
+      printf("  --%s %d\n", argument->longname, *((bool*)argument->parameter));
+      break;
+    case PARAM_INT:
+      printf("  --%s %d\n", argument->longname, *((int*)argument->parameter));
+      break;
+    case PARAM_LONG:
+      printf("  --%s %ld\n", argument->longname, *((long*)argument->parameter));
+      break;
+    case PARAM_TIMESPEC:
+      printf("  --%s %ld\n", argument->longname, convertTimespecToNs((struct timespec*)argument->parameter));
+      break;
+    case PARAM_FLOAT:
+      printf("  --%s %f\n", argument->longname, *((float*)argument->parameter));
+      break;
+    case PARAM_STRING:
+      printf("  --%s %s\n", argument->longname, *((char**)argument->parameter));
+      break;
+    case PARAM_INT_ARRAY:
+    {
+      IntArray* array = (IntArray*)argument->parameter;
+      if (array->elements != NULL) {
+        printf("  --%s [%d", argument->longname, array->elements[0]);
+        for (int i = 1; i < array->size; i++) {
+          printf("/%d", array->elements[i]);
+        }
+        printf("]\n");
+      }
+      break;
+    }
+    default:
+      printArgumentHelp(argument);
+      printf("unsupported type for config %s\n", argument->longname);
+      exit(EINVAL);
+    }
+    argument++;
+  }
+}
+
 static inline void freeArguments(Argument *arguments) {
   Argument *argument = arguments;
   while (argument->longname != NULL) {
@@ -315,7 +369,7 @@ static inline void freeArguments(Argument *arguments) {
       case PARAM_FLOAT_ARRAY:
       case PARAM_DOUBLE_ARRAY:
         array = (DummyArray*)argument->parameter;
-        if (array != NULL) {
+        if (array->elements != NULL) {
           free(array->elements);
         }
       }
