@@ -323,6 +323,9 @@ static inline void printArguments(Argument *arguments) {
     case PARAM_FLOAT:
       printf("  --%s %f\n", argument->longname, *((float*)argument->parameter));
       break;
+    case PARAM_DOUBLE:
+      printf("  --%s %lf\n", argument->longname, *((double*)argument->parameter));
+      break;
     case PARAM_STRING:
       printf("  --%s %s\n", argument->longname, *((char**)argument->parameter));
       break;
@@ -340,7 +343,7 @@ static inline void printArguments(Argument *arguments) {
     }
     default:
       printArgumentHelp(argument);
-      printf("unsupported type for config %s\n", argument->longname);
+      printf("unsupported type for parameter \"%s\"\n", argument->longname);
       exit(EINVAL);
     }
     argument++;
