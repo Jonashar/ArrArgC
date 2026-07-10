@@ -107,6 +107,8 @@ static inline size_t pcinternal_getSizeOf(int type) {
   case PARAM_STRING_ARRAY:
   case PARAM_STRING:
     return sizeof(DummyArray);
+  case PARAM_TIMESPEC:
+    return sizeof(struct timespec);
   default:
     printf("using unsupported type %d\n", type);
     exit(EINVAL);
@@ -273,7 +275,6 @@ static inline void processArguments(Argument *arguments, int argc, char *argv[])
         }
         case PARAM_TIMESPEC:
         {
-          pcinternal_getNextArgumentIndex(argc, argv, &i);
           long val = atol(argv[i] + argoffset); // parse long int and convert to timespec
           if (val > 0) {
             convertNsToTimespec(val, ((struct timespec*)argument->parameter));
