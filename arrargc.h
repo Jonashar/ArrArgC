@@ -351,7 +351,108 @@ static inline void printArguments(Argument *arguments) {
   }
 }
 
-static inline void freeArguments(Argument *arguments) {
+  static inline void writeConfiguration(Argument* arguments, char* outpath) {
+#ifdef WITH_CJSON
+  // TODO use library for this
+  // https://github.com/DaveGamble/cJSON.git
+#else
+  int jsonbuffersize = 4096;
+  char *jsonbuffer = malloc(jsonbuffersize);
+
+  int jsonsize = snprintf(jsonbuffer, jsonbuffersize, "{\n");
+  if ((jsonsize < 0) || (jsonsize > jsonbuffersize)) {
+    myerror("Failed to format json string");
+  }
+  int offset = jsonsize;
+
+  Argument *argument = &arguments[0];
+  while(argument->longname != NULL) {
+    const int valuebuffersize = 128;
+    char valuebuffer[valuebuffersize];
+    valuebuffer[0] = '\0';
+    int valuewritesize = 0;
+    switch (argument->type) {
+    case PARAM_BOOL:
+      valuewritesize = snprintf(valuebuffer, valuebuffersize, "%d", *((bool*)argument->parameter));
+      break;
+    case PARAM_INT:
+      valuewritesize = snprintf(valuebuffer, valuebuffersize, "%d", *((int*)argument->parameter));
+      break;
+    case PARAM_LONG:
+    case PARAM_TIMESPEC:
+      valuewritesize = snprintf(valuebuffer, valuebuffersize, "%ld", *((long*)argument->parameter));
+      break;
+    case PARAM_FLOAT:
+      valuewritesize = snprintf(valuebuffer, valuebuffersize, "%f", *((float*)argument->parameter));
+      break;
+    case PARAM_DOUBLE:
+      valuewritesize = snprintf(valuebuffer, valuebuffersize, "%lf", *((double*)argument->parameter));
+      break;
+    case PARAM_STRING:
+      valuewritesize = snprintf(valuebuffer, valuebuffersize, "%s", *((char**)argument->parameter));
+      break;
+    case PARAM_INT_ARRAY:
+    {
+      IntArray* array = (IntArray*)argument->parameter;
+      if (array->elements != NULL) {
+        valuewritesize = snprintf(valuebuffer, valuebuffersize, "[%d", array->elements[0]);
+        int arrayoffset = valuewritesize;
+        for (int i = 1; i < array->size; i++) {
+          valuewritesize = snprintf(valuebuffer+arrayoffset, valuebuffersize, "%d", array->elements[i]);
+          arrayoffset += valuewritesize;
+        }
+        valuewritesize = snprintf(valuebuffer+arrayoffset, valuebuffersize, "]");
+      }
+      break;
+    }
+    default:
+      printf("unsupported type writing to json for parameter \"%s\"\n", argument->longname);
+      exit(EINVAL);
+    }
+
+    bool notwritten = true;
+    while (notwritten) {
+      jsonsize = snprintf(jsonbuffer+offset, jsonbuffersize-offset, "  \"%s\" : \"%s\",\n", argument->longname, valuebuffer);
+      if ((jsonsize < 0) || ((jsonsize+3+offset) > jsonbuffersize)) {
+        // TODO untested
+        // +3 for the ending the json bracket
+        jsonbuffersize += 2048;
+        jsonbuffer = realloc(jsonbuffer, jsonbuffersize);
+      } else {
+        offset += jsonsize;
+        notwritten = false;
+      }
+    };
+
+    argument++;
+  }
+
+  // cutting off the last comma
+  jsonbuffer[offset-2] = '\n';
+  offset -= 1;
+
+  jsonsize = snprintf(jsonbuffer+offset, jsonbuffersize-offset, "}\n");
+  if ((jsonsize < 0) || ((jsonsize+offset) > jsonbuffersize)) {
+    perror("Failed to format json string");
+  }
+  offset += jsonsize;
+
+  char filename[PATH_MAX];
+  int wordsize = snprintf(filename, PATH_MAX, "%s/configuration.json", outpath);
+  if ((wordsize < 0) || (wordsize > PATH_MAX)) {
+    perror("Failed to format outputpath string");
+  }
+  FILE *fp = fopen(filename, "w");
+  if (fp == NULL) {
+    fprintf(stderr, "could not open file \"%s\"\n", outpath);
+    exit(ENOENT);
+  }
+  fwrite(jsonbuffer, sizeof(char), offset, fp);
+  fclose(fp);
+#endif
+}
+
+static inline void freeArguments(Argument* arguments) {
   Argument *argument = arguments;
   while (argument->longname != NULL) {
     if (argument->parameter != NULL) {
@@ -359,7 +460,7 @@ static inline void freeArguments(Argument *arguments) {
       switch (argument->type) {
       case PARAM_STRING_ARRAY:
       {
-        StringArray *strings = (StringArray *)argument->parameter;
+        StringArray *strings = (StringArray*)argument->parameter;
         if (strings != NULL) {
           for (int i = 0; i < strings->size; i++) {
             free(strings->elements[i]);
