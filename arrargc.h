@@ -398,7 +398,7 @@ static inline void printArguments(Argument *arguments) {
         valuewritesize = snprintf(valuebuffer, valuebuffersize, "[%d", array->elements[0]);
         int arrayoffset = valuewritesize;
         for (int i = 1; i < array->size; i++) {
-          valuewritesize = snprintf(valuebuffer+arrayoffset, valuebuffersize, "%d", array->elements[i]);
+          valuewritesize = snprintf(valuebuffer+arrayoffset, valuebuffersize, ",%d", array->elements[i]);
           arrayoffset += valuewritesize;
         }
         valuewritesize = snprintf(valuebuffer+arrayoffset, valuebuffersize, "]");
