@@ -449,6 +449,7 @@ static inline void printArguments(Argument *arguments) {
   }
   fwrite(jsonbuffer, sizeof(char), offset, fp);
   fclose(fp);
+  free(jsonbuffer);
 #endif
 }
 
